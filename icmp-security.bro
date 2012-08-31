@@ -12,13 +12,10 @@ export {
 		ICMP_Time_Exceeded,
 	};
 	
-	redef enum Metrics::ID += {
-		## Metric to track ICMP Time Exceeded messages generated for a src-dst pair
-		ICMP_TIME_EXCEEDED,
-	};
+	const id = "ICMP_TIME_EXCEEDED";
 	
 	## Defines the threshold for ICMP Time Exceeded messages for a src-dst pair
-	const icmp_time_exceeded_threshold = 1 &redef;
+	const icmp_time_exceeded_threshold = 18 &redef;
 
 	## Interval at which to watch for the
 	## :bro:id:`ICMPTimeExceeded::icmp_time_exceeded_threshold` variable to be crossed.
@@ -34,7 +31,7 @@ event bro_init() &priority=3
 	# determine when it looks like an actual attack and how to respond when
 	# thresholds are crossed.
 	
-	Metrics::add_filter(ICMP_TIME_EXCEEDED, [$log=F,
+	Metrics::add_filter(id, [$log=F,
 	                                   $notice_threshold=icmp_time_exceeded_threshold,
 	                                   $break_interval=icmp_time_exceeded_interval,
 	                                   $note=ICMP_Time_Exceeded]);
@@ -45,7 +42,13 @@ event bro_init() &priority=3
 event icmp_time_exceeded(c: connection, icmp: icmp_conn, code: count, context: icmp_context)
 	{
 	local src_dst_pair = fmt("(src-%s)-->(dst-%s)",context$id$orig_h,context$id$resp_h);
-	Metrics::add_data(ICMP_TIME_EXCEEDED, [ $str = src_dst_pair ], 1);
+	# This function does the following:
+	# If index (src_dst_pair) doesn't exist, it creates an entry for this index. It
+	# adds data (c$id$orig_h) to a set associated with this index. If the number
+	# of unique data values for an index exceeds threshold, a notice is generated.
+	# So the threshold applies to the number of unique data values associated with
+	# an index.
+	Metrics::add_unique(id,[ $str = src_dst_pair ], fmt("%s",c$id$orig_h));
 	}
 
 
